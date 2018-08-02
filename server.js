@@ -9,7 +9,7 @@ const busboyBodyParser = require('busboy-body-parser');
 
 var secretKey = 'supersecretypublickey';
 var ACTIONS = ['SHOW_POSTS', 'NEW_POST','SHOW_FRIENDS', 'ADD_FRIEND',
-	'SHOW_COMMENTS', 'ADD_COMMENT' ]; 
+	'SHOW_COMMENTS', 'ADD_COMMENT', 'SEARCH_FRIEND' ]; 
 
 
 
@@ -99,9 +99,9 @@ router.get('/myfriends', verifyToken, function(req, res) {
 	verifyAndDo(req, res, action, payload);
 });
 
+
 //// route: getPic  ////////////////////
 router.get('/getpic', verifyToken, function(req, res) {
-	console.log('at getpic route');
 	let s3 = new AWS.S3({
 		accessKeyId: IAM_USER_KEY,
 		secretAccessKey: IAM_USER_SECRET,
@@ -112,28 +112,20 @@ router.get('/getpic', verifyToken, function(req, res) {
 
 
 	s3.getSignedUrl('putObject', params, function (err, url) {
-			console.log('Your neww generated pre-signed URL is', url);
-			imageURL = url;
-	}).then(res.json({imageUrl: imageURL}));
+		imageURL = url;
+		res.json({imageUrl: imageURL});
+	});  //.then(res.json({imageUrl: imageURL}));
 
 });
 
 
-
-
-
-
-
+//// route: sign-s3  ////////////////////
 router.get('/sign-s3', (req, res) => {
 	let s3 = new AWS.S3({
 		accessKeyId: IAM_USER_KEY,
 		secretAccessKey: IAM_USER_SECRET,
 		Bucket: BUCKET_NAME
 	});
-
-	console.log('the request: ', req);
-	console.log('filename: ', req.headers['picturename']);
-	console.log('filetype: ', req.headers.filetype);
 	const fileName = req.headers['picturename'];
 	const fileType = req.headers.filetype;
 	const s3Params = {
@@ -143,10 +135,6 @@ router.get('/sign-s3', (req, res) => {
 		ContentType: fileType,
 		ACL: 'public-read'
 	};
-	console.log('getting signed url');
-
-
-
 	var returnData = {};
 	s3.getSignedUrl('putObject', s3Params, (err, data) => {
 		if(err){
@@ -157,13 +145,38 @@ router.get('/sign-s3', (req, res) => {
 			signedRequest: data,
 			url: `https://${BUCKET_NAME}.s3.amazonaws.com/${fileName}`
 		};
-		console.log('responding with signed data: ', returnData);
-
 		res.status(200).json({message: 'sucess??', data: returnData});
-
-
-
 	}); 
+});
+
+
+/////////////////////////////////////// route: showComments ////////////////////
+router.get('/comments', verifyToken, function(req, res) {
+	const payload = { userid: req.headers.userid, postid: req.headers.postid, 
+		token: req.headers.token};
+	const action = ACTIONS[4];
+	verifyAndDo(req, res, action, payload);
+});
+
+
+/////////////////////////////////////// route: addComment ////////////////////
+router.put('/comments', verifyToken, function(req, res) {
+	const payload = { userid: req.headers.userid, postid: req.headers.postid, 
+		token: req.headers.token, comment: req.headers.text};
+	console.log('new comment payload', payload);
+	const action = ACTIONS[5];
+	verifyAndDo(req, res, action, payload);
+});
+
+
+/////////////////////////////////////// route: searchUser  ////////////////////
+router.get('/search', verifyToken, function(req, res) {
+	console.log('req headers', req.headers);
+	const payload = { userid: req.headers.userid, token: req.headers.token, 
+		firstName: req.headers.firstname, lastName: req.headers.lastname };
+	console.log('payload is', payload);
+	const action = ACTIONS[6];
+	verifyAndDo(req, res, action, payload);
 });
 
 
@@ -179,20 +192,6 @@ router.get('/addfriend', verifyToken, function(req, res) {
 });
 
 
-/////////////////////////////////////// route: addComment ////////////////////
-router.get('/addComment', verifyToken, function(req, res) {
-	const payload = { userid: 1, postid: 1, token: req.headers.token};
-	const action = ACTIONS[2];
-	verifyAndDo(req, res, action, payload);
-});
-
-
-/////////////////////////////////////// route: showComments ////////////////////
-router.get('/showComments', verifyToken, function(req, res) {
-	const payload = { userid: 1, postid: 1, token: req.headers.token };
-	const action = ACTIONS[2];
-	verifyAndDo(req, res, action, payload);
-});
 
 
 
@@ -283,11 +282,38 @@ function verifyAndDo(req,res, action, payload){
 					break;
 				case 'SHOW_COMMENTS':
 					//case show comments for a post
-					res.json({message: 'not a proper action'});
+					console.log('show comments');
+
+					sql = "SELECT * FROM comments WHERE postid = " + payload.postid;
+					console.log('the sql is: ',sql);
+					con.query(sql, function (err, result) { if (err) throw err; res.status(200).json({message: 'retrieved comments successfully', comments: result});
+					});
+
 					break;
 				case 'ADD_COMMENT':
 					//case add a comment to a post
+
+					sql = "INSERT INTO comments (text, date, postid, userid) VALUES('" 
+						+payload.comment+ "', '"+null+"', "+payload.postid+","+payload.userid+")";
+					console.log('the sql is', sql);
+					con.query(sql, function (err, result) {
+						if (err) throw err;
+						res.status(200).json({message: 'created posts successfully', commentResult: result});
+					});
 					res.json({message: 'not a proper action'});
+					break;
+				case 'SEARCH_FRIEND':
+					console.log('payload is', payload);
+					//sql = "SELECT * from user WHERE '"+payload.firstName+"' IN (SELECT * FROM user WHERE user.lastName = '" + payload.lastName + "')";
+
+					sql = "SELECT * FROM user WHERE user.lastName = '" + payload.lastName + "'";
+					console.log('the sql is', sql);
+					con.query(sql, function (err, result) {
+						if (err) throw err;
+						res.status(200).json({message: 'retrieved friends successfully', friends: result});
+					});
+
+					
 					break;
 				default:
 					res.json({message: 'not a proper action'});
