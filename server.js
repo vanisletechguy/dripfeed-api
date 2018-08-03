@@ -316,7 +316,7 @@ function verifyAndDo(req,res, action, payload){
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
-						res.status(200).json({message: 'removed friend successfully', success: true, friendId: payload.friendid});
+						res.status(200).json({message: 'added friend successfully', success: true, friendId: payload.friendid});
 					});
 					break;
 				case 'UNFRIEND':
@@ -324,8 +324,22 @@ function verifyAndDo(req,res, action, payload){
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
-						res.status(200).json({message: 'removed friend successfully', success: true, friendId: payload.friendid});
+
+
+
+						sql = "SELECT * from user WHERE user.iduser IN (SELECT friend FROM friendlist WHERE listowner = " + payload.userid + ")"; con.query(sql, function (err, result) {
+							if (err) throw err;
+							res.status(200).json({message: 'removed friend successfully', success: true, friends: result});
+						});
+
+
 					});
+
+
+
+
+
+
 					break;
 				default:
 					res.json({message: 'not a proper action'});
