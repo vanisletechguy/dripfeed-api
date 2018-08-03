@@ -9,7 +9,7 @@ const busboyBodyParser = require('busboy-body-parser');
 
 var secretKey = 'supersecretypublickey';
 var ACTIONS = ['SHOW_POSTS', 'NEW_POST','SHOW_FRIENDS', 'ADD_FRIEND',
-	'SHOW_COMMENTS', 'ADD_COMMENT', 'SEARCH_FRIEND' ]; 
+	'SHOW_COMMENTS', 'ADD_COMMENT', 'SEARCH_FRIEND', 'UNFRIEND' ]; 
 
 
 
@@ -163,7 +163,6 @@ router.get('/comments', verifyToken, function(req, res) {
 router.put('/comments', verifyToken, function(req, res) {
 	const payload = { userid: req.headers.userid, postid: req.headers.postid, 
 		token: req.headers.token, comment: req.headers.text};
-	console.log('new comment payload', payload);
 	const action = ACTIONS[5];
 	verifyAndDo(req, res, action, payload);
 });
@@ -171,18 +170,29 @@ router.put('/comments', verifyToken, function(req, res) {
 
 /////////////////////////////////////// route: searchUser  ////////////////////
 router.get('/search', verifyToken, function(req, res) {
-	console.log('req headers', req.headers);
 	const payload = { userid: req.headers.userid, token: req.headers.token, 
 		firstName: req.headers.firstname, lastName: req.headers.lastname };
-	console.log('payload is', payload);
 	const action = ACTIONS[6];
+	verifyAndDo(req, res, action, payload);
+});
+
+
+/////////////////////////////////////// route: unfriend  ////////////////////
+router.get('/unfriend', verifyToken, function(req, res) {
+	console.log('at unfriend');
+	const payload = { userid: req.headers.userid, token: req.headers.token, 
+		friendid: req.headers.friendid };
+	const action = ACTIONS[7];
+	
+	console.log('verifying');
 	verifyAndDo(req, res, action, payload);
 });
 
 
 
 
-///////////////////////untouch functions
+
+///////////////////////untouched functions
 
 /////////////////////////////////////// route: addfriend ////////////////////
 router.get('/addfriend', verifyToken, function(req, res) {
@@ -194,7 +204,7 @@ router.get('/addfriend', verifyToken, function(req, res) {
 
 
 
-
+///////////////////no longer used?
 router.post('/upload', function (req, res, next) {
 	console.log('request', req.headers);
 	var busboy = new Busboy({ headers: req.headers });
@@ -259,7 +269,6 @@ function verifyAndDo(req,res, action, payload){
 					});
 					break;
 				case 'SHOW_POSTS':
-					console.log('showingposts');
 					sql = "SELECT * FROM post WHERE userid = " + payload.userid;
 					console.log('the sql is: ',sql);
 					con.query(sql, function (err, result) {
@@ -268,7 +277,6 @@ function verifyAndDo(req,res, action, payload){
 					});
 					break;
 				case 'SHOW_FRIENDS': 
-					console.log('show friends');
 					sql = "SELECT * from user WHERE user.iduser IN (SELECT friend FROM friendlist WHERE listowner = " + payload.userid + ")";
 					con.query(sql, function (err, result) {
 						if (err) throw err;
@@ -281,18 +289,12 @@ function verifyAndDo(req,res, action, payload){
 					res.json({message: 'not a proper action'});
 					break;
 				case 'SHOW_COMMENTS':
-					//case show comments for a post
-					console.log('show comments');
-
 					sql = "SELECT * FROM comments WHERE postid = " + payload.postid;
 					console.log('the sql is: ',sql);
 					con.query(sql, function (err, result) { if (err) throw err; res.status(200).json({message: 'retrieved comments successfully', comments: result});
 					});
-
 					break;
 				case 'ADD_COMMENT':
-					//case add a comment to a post
-
 					sql = "INSERT INTO comments (text, date, postid, userid) VALUES('" 
 						+payload.comment+ "', '"+null+"', "+payload.postid+","+payload.userid+")";
 					console.log('the sql is', sql);
@@ -303,17 +305,23 @@ function verifyAndDo(req,res, action, payload){
 					res.json({message: 'not a proper action'});
 					break;
 				case 'SEARCH_FRIEND':
-					console.log('payload is', payload);
-					//sql = "SELECT * from user WHERE '"+payload.firstName+"' IN (SELECT * FROM user WHERE user.lastName = '" + payload.lastName + "')";
-
 					sql = "SELECT * FROM user WHERE user.lastName = '" + payload.lastName + "'";
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
 						res.status(200).json({message: 'retrieved friends successfully', friends: result});
 					});
+					break;
+				case 'UNFRIEND':
+					console.log('payload is: ', payload);
+					sql = "DELETE FROM friendlist WHERE friendlist.listowner = " + payload.userid + " AND friendlist.friend = " + payload.friendid;
 
-					
+
+					console.log('the sql is', sql);
+					con.query(sql, function (err, result) {
+						if (err) throw err;
+						res.status(200).json({message: 'removed friend successfully', success: true, friendId: payload.friendid});
+					});
 					break;
 				default:
 					res.json({message: 'not a proper action'});
