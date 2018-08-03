@@ -9,7 +9,7 @@ const busboyBodyParser = require('busboy-body-parser');
 
 var secretKey = 'supersecretypublickey';
 var ACTIONS = ['SHOW_POSTS', 'NEW_POST','SHOW_FRIENDS', 'ADD_FRIEND',
-	'SHOW_COMMENTS', 'ADD_COMMENT', 'SEARCH_FRIEND', 'UNFRIEND' ]; 
+	'SHOW_COMMENTS', 'ADD_COMMENT', 'SEARCH_FRIEND', 'UNFRIEND', 'ADD_FRIEND' ]; 
 
 
 
@@ -196,8 +196,12 @@ router.get('/unfriend', verifyToken, function(req, res) {
 
 /////////////////////////////////////// route: addfriend ////////////////////
 router.get('/addfriend', verifyToken, function(req, res) {
-	const payload = { userid: 1, friendid: 2 };
-	const action = ACTIONS[2];
+	console.log('at add friend');
+	const payload = { userid: req.headers.userid, token: req.headers.token, 
+		friendid: req.headers.friendid };
+	const action = ACTIONS[8];
+	
+	console.log('verifying');
 	verifyAndDo(req, res, action, payload);
 });
 
@@ -283,11 +287,6 @@ function verifyAndDo(req,res, action, payload){
 						res.status(200).json({message: 'retrieved friends successfully', friends: result});
 					});
 					break;
-				case 'ADD_FRIEND':
-					sql = "";
-					///case add friend to list
-					res.json({message: 'not a proper action'});
-					break;
 				case 'SHOW_COMMENTS':
 					sql = "SELECT * FROM comments WHERE postid = " + payload.postid;
 					console.log('the sql is: ',sql);
@@ -312,11 +311,16 @@ function verifyAndDo(req,res, action, payload){
 						res.status(200).json({message: 'retrieved friends successfully', friends: result});
 					});
 					break;
+				case 'ADD_FRIEND':
+					sql = "INSERT INTO friendlist (listowner, friend) VALUES(" + payload.userid + ", " + payload.friendid + ")";
+					console.log('the sql is', sql);
+					con.query(sql, function (err, result) {
+						if (err) throw err;
+						res.status(200).json({message: 'removed friend successfully', success: true, friendId: payload.friendid});
+					});
+					break;
 				case 'UNFRIEND':
-					console.log('payload is: ', payload);
 					sql = "DELETE FROM friendlist WHERE friendlist.listowner = " + payload.userid + " AND friendlist.friend = " + payload.friendid;
-
-
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
