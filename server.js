@@ -64,16 +64,18 @@ router.post('/login', function(req, res) {
 
 //// route: register////////////////////
 router.post('/register', function(req, res) {  
+	console.log('at register and req headers are: ', req.headers);
 	var hashedPassword = bcrypt.hashSync(req.headers['password'], 8);
 	const firstName = req.headers['firstName'];
 	const lastName = req.headers['lastName'];
 	const email = req.headers['email'];
+	const password = req.headers['password'];
 	var sql = "INSERT INTO user (firstName, lastName, email, password) VALUES('" +
 		firstName + "','" + lastName + "','" + email + "', '" + hashedPassword + "')";
 	con.query(sql, function (err) {
 		if (err) throw err;
 	});
-	getToken(email, res);
+	getToken(email, password, res);
 });
 
 ////need to set these to use parameters
@@ -100,6 +102,7 @@ router.get('/myfriends', verifyToken, function(req, res) {
 });
 
 
+//////////////////////////USELESS FUNCTION??
 //// route: getPic  ////////////////////
 router.get('/getpic', verifyToken, function(req, res) {
 	let s3 = new AWS.S3({
@@ -188,12 +191,6 @@ router.get('/unfriend', verifyToken, function(req, res) {
 	verifyAndDo(req, res, action, payload);
 });
 
-
-
-
-
-///////////////////////untouched functions
-
 /////////////////////////////////////// route: addfriend ////////////////////
 router.get('/addfriend', verifyToken, function(req, res) {
 	console.log('at add friend');
@@ -228,19 +225,30 @@ router.post('/upload', function (req, res, next) {
 
 ////////////////////////////////////// function: getToken///////////////////
 function getToken(email, password, res) {
+	console.log('at get token');
 	var sql = "SELECT iduser FROM user WHERE email = '" + email + "'";
+	console.log('the sql is: ', sql);
 	var newToken = '';
 	con.query(sql, function (err, result) {
-		if (err) throw err;
-		var userId = result[0].iduser;
-		newToken = jwt.sign({ id: userId }, secretKey, {
-			expiresIn: 86400 // expires in 24 hours
-		});
-		var addKeyQuery = "UPDATE user SET token = '" + newToken + "' WHERE iduser = " + userId;
-		con.query(addKeyQuery, function (err) {
-			if(err) throw err;
-			res.json({yourToken: newToken, userId: userId, email: email});
-		});
+		if (err) {
+			console.log('at error res is ', res); 
+			res.json({success: false, message: "email not found"});
+			throw err;
+		}
+		if(result[0]) { var userId = result[0].iduser; }
+		if(!userId){ res.json({success: false, message: "email not found"});}
+
+
+		if(userId) {
+			newToken = jwt.sign({ id: userId }, secretKey, {
+				expiresIn: 86400 // expires in 24 hours
+			});
+			var addKeyQuery = "UPDATE user SET token = '" + newToken + "' WHERE iduser = " + userId;
+			con.query(addKeyQuery, function (err) {
+				if(err) throw err;
+				res.json({success: true, yourToken: newToken, userId: userId, email: email});
+			});
+		}
 	});
 }
 
@@ -316,14 +324,10 @@ function verifyAndDo(req,res, action, payload){
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
-
-
 						sql = "SELECT * from user WHERE user.iduser IN (SELECT friend FROM friendlist WHERE listowner = " + payload.userid + ")"; con.query(sql, function (err, result) {
 							if (err) throw err;
 							res.status(200).json({message: 'added friend successfully', success: true, friends: result});
 						});
-
-						//res.status(200).json({message: 'added friend successfully', success: true, friendId: payload.friendid});
 					});
 					break;
 				case 'UNFRIEND':
@@ -331,26 +335,14 @@ function verifyAndDo(req,res, action, payload){
 					console.log('the sql is', sql);
 					con.query(sql, function (err, result) {
 						if (err) throw err;
-
-
-
 						sql = "SELECT * from user WHERE user.iduser IN (SELECT friend FROM friendlist WHERE listowner = " + payload.userid + ")"; con.query(sql, function (err, result) {
 							if (err) throw err;
 							res.status(200).json({message: 'removed friend successfully', success: true, friends: result});
 						});
-
-
 					});
-
-
-
-
-
-
 					break;
 				default:
 					res.json({message: 'not a proper action'});
-
 				}
 			} else {
 				res.json({message: 'wrong id'});
