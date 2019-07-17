@@ -238,12 +238,13 @@ function getToken(email, password, res) {
 		if(result[0]) { var userId = result[0].iduser; }
 		if(!userId){ res.json({success: false, message: "email not found"});}
 
-
+		console.log('searching for user ...');
 		if(userId) {
 			newToken = jwt.sign({ id: userId }, secretKey, {
 				expiresIn: 86400 // expires in 24 hours
 			});
 			var addKeyQuery = "UPDATE user SET token = '" + newToken + "' WHERE iduser = " + userId;
+			console.log('found the user, addKeyQuery is: ', addKeyQuery);
 			con.query(addKeyQuery, function (err) {
 				if(err) throw err;
 				res.json({success: true, yourToken: newToken, userId: userId, email: email});
@@ -417,6 +418,8 @@ function uploadToS3(req, res, file, payload) {
 		});
 	});
 }
+
+
 
 
 
